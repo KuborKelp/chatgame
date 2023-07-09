@@ -8,7 +8,8 @@ import random
 from time import sleep
 
 
-IP = '172.23.176.80'
+#IP = '172.23.176.80'
+IP = '127.0.0.1'
 PORT = 5555     # 端口
 users = []   # 0:userName 1:status
 
