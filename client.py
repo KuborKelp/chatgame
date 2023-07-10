@@ -99,6 +99,7 @@ class Guess_Form(QtWidgets.QWidget, guess.Ui_Form):
         global guess_status
         client.send_data({'event': 'guess_start', 'args': [None]})
         guess_status = True
+        self.status_update_start()
         guess_form.button_start.close()
 
 
@@ -108,7 +109,7 @@ class Guess_Pu(QThread):  # players_update线程
 
     def run(self):
         global Username, guess_status
-        while True:
+        while not guess_status:
             client.send_data({'event': 'guess_players_update', 'args': [None]})
             msg = client.get_data('return_guess_players')
             if msg:
@@ -119,23 +120,25 @@ class Guess_Pu(QThread):  # players_update线程
                 msg = '当前在线玩家:\n' + '\n'.join(msg)
                 guess_form.players.setText(msg)
             self.sleep(1)
+        #self.exec()
 
 
-class Guess_Su(QThread):  # players_update线程
+class Guess_Su(QThread):  # status# _update线程
     def __init__(self):
         super(Guess_Su, self).__init__()
 
     def run(self):
         global Username, guess_status
         while True:
+            self.sleep(1)
             client.send_data({'event': 'guess_status_update', 'args': [None]})
             msg = client.get_data('guess_status_return')
+            print('sr')
             guess_form.status.setText(str(msg))
             if True and not guess_status:
                 pass
             else:
                 pass
-            self.sleep(1)
 
 
 if __name__ == '__main__':
