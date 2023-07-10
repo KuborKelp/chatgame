@@ -144,7 +144,7 @@ class Guess_Su(QThread):  # status# _update线程
 if __name__ == '__main__':
     global guess_status
     app = QtWidgets.QApplication(sys.argv)
-    Username = 'Steve'
+    Username = 'Alex'
     guess_status = False
 
     client = Client()
