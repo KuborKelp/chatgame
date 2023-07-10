@@ -8,44 +8,50 @@ import mainwindow
 import guess
 from time import sleep
 
+events = ['return_guess_players', 'guess_start', 'guess_status_return']
+recv_cache = [None]*10
+
 
 class Client:
     def __init__(self):
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-        self.IP = "127.0.0.1"
-        # self.IP = '121.43.55.56'
+        self.IP = "121.43.55.56"
         self.PORT = 5555
-
-    def connect_to_server(self):
         self.client_socket.connect((self.IP, self.PORT))
 
     def send_data(self, msg):
         msg = json.dumps(msg).encode('utf-8')
         self.client_socket.send(msg)
 
-    def get_data(self):
+    def get_data(self, event):
+        global events
+        ei = None  # events_index
         msg = None
         while not msg:
-            msg = self.client_socket.recv(1024).decode('utf-8')
+            msg = self.client_socket.recv(2048).decode('utf-8')
+            print(msg)
             if msg:
                 msg = json.loads(msg)
-                match msg['event']:
-                    case 'return_guess_players':
-                        return msg['args']
-                    case 'guess_start':
+                match msg['event']:  # 放入0号缓存
+                    case 'return_guess_players':  # events[0]
+                        ei = 0
+                        recv_cache[ei] = msg['args'][0]
+                    case 'guess_start':  # events[1]
+                        ei = 1
+                        recv_cache[ei] = None
                         guess_form.thread_su.start()
-                        return None
-
-                print(msg)
+                    case 'guess_status_return':  # events[2]
+                        ei = 2
+                        recv_cache[ei] = msg['args']
+                print(event)
+                return recv_cache[events.index(event)]
 
 
 class Login_Form(QtWidgets.QWidget, login.Ui_Form):
-    def __init__(self, client):
+    def __init__(self):
         super(Login_Form, self).__init__()
         self.setupUi(self)
-        self.client = client
-        self.setWindowTitle("Login")
 
     def LoginButton_Clicked(self):
         global Username
@@ -54,13 +60,12 @@ class Login_Form(QtWidgets.QWidget, login.Ui_Form):
             return
         self.close()
         Username = self.textEdit.toPlainText()
-        self.client.connect_to_server()  # 在点击登录按钮时连接服务器
-        self.client.send_data({'event': 'login', 'args': [Username]})
+        client.send_data({'event': 'login', 'args': [Username]})
         mainwindow_form.show()
 
 
 class MainWindow_Form(QtWidgets.QWidget, mainwindow.Ui_Form):
-    def __init__(self, client):
+    def __init__(self):
         super(MainWindow_Form, self).__init__()
         self.setupUi(self)
         self.client = client
@@ -68,19 +73,18 @@ class MainWindow_Form(QtWidgets.QWidget, mainwindow.Ui_Form):
 
     def Guess_Clicked(self):
         global Username
-        self.client.send_data({'event': 'guess_join', 'args': [Username]})
+        client.send_data({'event': 'guess_join', 'args': [Username]})
         guess_form.show()
         guess_form.players_update_start()
         self.close()
 
 
 class Guess_Form(QtWidgets.QWidget, guess.Ui_Form):
-    def __init__(self, client):
+    def __init__(self):
         super(Guess_Form, self).__init__()
         self.setupUi(self)
-        self.client = client
-        self.thread_pu = Guess_Pu(client)
-        self.thread_su = Guess_Su(client)
+        self.thread_pu = Guess_Pu()
+        self.thread_su = Guess_Su()
 
     def players_update_start(self):
         self.thread_pu.start()
@@ -93,21 +97,20 @@ class Guess_Form(QtWidgets.QWidget, guess.Ui_Form):
 
     def guess_start(self):
         global guess_status
-        self.client.send_data({'event': 'guess_start', 'args': [None]})
+        client.send_data({'event': 'guess_start', 'args': [None]})
         guess_status = True
         guess_form.button_start.close()
 
 
 class Guess_Pu(QThread):  # players_update线程
-    def __init__(self, client):
-        self.client = client
+    def __init__(self):
         super(Guess_Pu, self).__init__()
 
     def run(self):
         global Username, guess_status
         while True:
-            self.client.send_data({'event': 'guess_players_update', 'args': [None]})
-            msg = self.client.get_data()
+            client.send_data({'event': 'guess_players_update', 'args': [None]})
+            msg = client.get_data('return_guess_players')
             if msg:
                 if Username == msg[0][4:] and not guess_status:
                     guess_form.button_start.show()
@@ -119,34 +122,33 @@ class Guess_Pu(QThread):  # players_update线程
 
 
 class Guess_Su(QThread):  # players_update线程
-    def __init__(self, client):
-        self.client = client
+    def __init__(self):
         super(Guess_Su, self).__init__()
 
     def run(self):
         global Username, guess_status
         while True:
-            self.client.send_data({'event': 'guess_status_update', 'args': [None]})
-            msg = self.client.get_data()
-            print(12121)
+            client.send_data({'event': 'guess_status_update', 'args': [None]})
+            msg = client.get_data('guess_status_return')
             guess_form.status.setText(str(msg))
             if True and not guess_status:
                 pass
             else:
                 pass
-            print(250)
-            sleep(0.2)
+            self.sleep(1)
 
 
 if __name__ == '__main__':
+    global guess_status
     app = QtWidgets.QApplication(sys.argv)
     Username = 'Steve'
+    guess_status = False
 
     client = Client()
 
-    login_form = Login_Form(client)
-    mainwindow_form = MainWindow_Form(client)
-    guess_form = Guess_Form(client)
+    login_form = Login_Form()
+    mainwindow_form = MainWindow_Form()
+    guess_form = Guess_Form()
     login_form.show()
 
     sys.exit(app.exec_())
